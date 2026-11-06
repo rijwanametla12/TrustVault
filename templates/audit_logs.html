@@ -1,0 +1,456 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TrustVault | Audit Logs</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            padding: 35px 20px;
+            background:
+                radial-gradient(circle at 15% 20%, #ded7ff, transparent 35%),
+                radial-gradient(circle at 90% 85%, #d9d2ff, transparent 35%),
+                #f7f6ff;
+        }
+
+        .container {
+            max-width: 1150px;
+            margin: auto;
+            padding: 38px;
+            background: #ffffff;
+            border: 1px solid #eeeaff;
+            border-radius: 22px;
+            box-shadow: 0 18px 50px rgba(60, 40, 130, 0.12);
+        }
+
+        /* Header */
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 18px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #eeeaf7;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 48px;
+            height: 51px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, #8060f5, #4823c9);
+            color: white;
+            font-size: 27px;
+            font-weight: bold;
+            clip-path: polygon(
+                50% 0, 100% 20%, 90% 75%,
+                50% 100%, 10% 75%, 0 20%
+            );
+        }
+
+        .brand h1 {
+            color: #202944;
+            font-size: 29px;
+            font-weight: 800;
+        }
+
+        .brand p {
+            color: #9290a5;
+            font-size: 10px;
+            letter-spacing: 2px;
+            margin-top: 5px;
+        }
+
+        .back {
+            padding: 12px 19px;
+            background: linear-gradient(135deg, #7650ed, #4c27c9);
+            color: white;
+            text-decoration: none;
+            border-radius: 9px;
+            font-weight: 700;
+            font-size: 14px;
+            transition: 0.3s;
+        }
+
+        .back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 18px rgba(89, 53, 211, 0.2);
+        }
+
+        /* Page heading */
+
+        .page-heading {
+            margin-top: 35px;
+            margin-bottom: 25px;
+        }
+
+        .eyebrow {
+            color: #6340d5;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+
+        .page-heading h2 {
+            color: #202944;
+            font-size: 30px;
+            margin-bottom: 9px;
+        }
+
+        .page-heading p {
+            color: #858ba0;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* Information banner */
+
+        .info-banner {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            padding: 20px;
+            margin-bottom: 32px;
+            background: #f5f2ff;
+            border: 1px solid #e9e2ff;
+            border-radius: 14px;
+        }
+
+        .info-icon {
+            width: 53px;
+            height: 53px;
+            min-width: 53px;
+            display: grid;
+            place-items: center;
+            background: #e8e0ff;
+            border-radius: 13px;
+            font-size: 26px;
+        }
+
+        .info-banner h3 {
+            color: #41317d;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .info-banner p {
+            color: #77738c;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        /* Activity section */
+
+        .activity-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .activity-heading h3 {
+            color: #202944;
+            font-size: 21px;
+        }
+
+        .activity-label {
+            padding: 7px 13px;
+            color: #6340d5;
+            background: #f2efff;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        /* Table */
+
+        .table-wrapper {
+            overflow-x: auto;
+            border: 1px solid #eeeaf7;
+            border-radius: 13px;
+        }
+
+        table {
+            width: 100%;
+            min-width: 650px;
+            border-collapse: collapse;
+        }
+
+        th {
+            padding: 17px 20px;
+            background: #30205f;
+            color: white;
+            text-align: left;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        td {
+            padding: 17px 20px;
+            color: #4c5268;
+            font-size: 13px;
+            border-bottom: 1px solid #eeeaf7;
+            vertical-align: middle;
+        }
+
+        tbody tr {
+            transition: 0.2s;
+        }
+
+        tbody tr:hover {
+            background: #faf9ff;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .number {
+            color: #8983a6;
+            font-weight: 700;
+        }
+
+        .action {
+            display: inline-block;
+            padding: 7px 11px;
+            background: #f0ecff;
+            color: #6340d5;
+            border-radius: 7px;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .details {
+            max-width: 450px;
+            line-height: 1.6;
+            overflow-wrap: anywhere;
+        }
+
+        .date {
+            color: #77738c;
+            white-space: nowrap;
+            font-size: 12px;
+        }
+
+        /* Empty state */
+
+        .empty {
+            text-align: center;
+            padding: 45px 20px;
+            color: #858ba0;
+            line-height: 1.8;
+        }
+
+        .empty-icon {
+            display: block;
+            font-size: 35px;
+            margin-bottom: 10px;
+        }
+
+        /* Footer */
+
+        .footer {
+            text-align: center;
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid #eeeaf7;
+            color: #9290a5;
+            font-size: 12px;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 15px 10px;
+            }
+
+            .container {
+                padding: 23px 17px;
+                border-radius: 16px;
+            }
+
+            .brand h1 {
+                font-size: 25px;
+            }
+
+            .page-heading h2 {
+                font-size: 25px;
+            }
+
+            .info-banner {
+                align-items: flex-start;
+                padding: 15px;
+            }
+
+            .activity-heading h3 {
+                font-size: 19px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+
+        <div class="brand">
+
+            <div class="brand-icon">✓</div>
+
+            <div>
+                <h1>TrustVault</h1>
+                <p>YOUR DOCUMENTS. YOUR SECURITY.</p>
+            </div>
+
+        </div>
+
+        <a href="{{ url_for('dashboard') }}" class="back">
+            ← Dashboard
+        </a>
+
+    </div>
+
+    <!-- Page Heading -->
+    <div class="page-heading">
+
+        <div class="eyebrow">
+            SECURITY MONITORING
+        </div>
+
+        <h2>📋 Audit Trail</h2>
+
+        <p>
+            Monitor and review activities performed in your TrustVault system.
+            Every recorded action helps maintain accountability.
+        </p>
+
+    </div>
+
+    <!-- Information Banner -->
+    <div class="info-banner">
+
+        <div class="info-icon">
+            🛡️
+        </div>
+
+        <div>
+            <h3>Security Activity Records</h3>
+
+            <p>
+                Review recorded account activities, document operations,
+                sharing events and other security-related actions.
+            </p>
+        </div>
+
+    </div>
+
+    <!-- Activity Section -->
+    <div class="activity-heading">
+
+        <h3>Recorded Activities</h3>
+
+        <span class="activity-label">
+            System Audit Logs
+        </span>
+
+    </div>
+
+    <!-- Audit Table -->
+    <div class="table-wrapper">
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Activity</th>
+                    <th>Details</th>
+                    <th>Date and Time</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for log in logs %}
+
+                <tr>
+
+                    <td class="number">
+                        {{ loop.index }}
+                    </td>
+
+                    <td>
+                        <span class="action">
+                            {{ log["action"] }}
+                        </span>
+                    </td>
+
+                    <td class="details">
+                        {{ log["details"] }}
+                    </td>
+
+                    <td class="date">
+                        {{ log["created_at"] }}
+                    </td>
+
+                </tr>
+
+                {% else %}
+
+                <tr>
+                    <td colspan="4" class="empty">
+
+                        <span class="empty-icon">📂</span>
+
+                        <strong>No activities recorded yet.</strong>
+
+                        <p>
+                            Your security activity records will appear here.
+                        </p>
+
+                    </td>
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+
+        © 2026 TrustVault | Secure Digital Document Management
+
+    </div>
+
+</div>
+
+</body>
+</html>

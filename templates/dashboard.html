@@ -1,0 +1,429 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrustVault | Dashboard</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #f7f6ff;
+            color: #202944;
+        }
+
+        /* Navigation */
+        .navbar {
+            background: white;
+            padding: 18px 7%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 3px 20px rgba(55, 40, 120, 0.07);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 27px;
+            font-weight: 800;
+            color: #202944;
+        }
+
+        .brand-icon {
+            width: 43px;
+            height: 46px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, #8060f5, #4823c9);
+            color: white;
+            font-size: 26px;
+            clip-path: polygon(
+                50% 0, 100% 20%, 90% 75%,
+                50% 100%, 10% 75%, 0 20%
+            );
+        }
+
+        .logout {
+            background: #fff0f0;
+            color: #d64545;
+            text-decoration: none;
+            padding: 12px 22px;
+            border-radius: 10px;
+            font-weight: 700;
+            transition: 0.3s;
+        }
+
+        .logout:hover {
+            background: #d64545;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        /* Main container */
+        .container {
+            max-width: 1150px;
+            margin: 45px auto;
+            padding: 0 25px;
+        }
+
+        /* Welcome section */
+        .welcome-section {
+            background: linear-gradient(120deg, #eeeaff, #ffffff);
+            padding: 38px;
+            border-radius: 22px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            box-shadow: 0 8px 25px rgba(70, 50, 150, 0.06);
+        }
+
+        .welcome-label {
+            color: #6946df;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+        }
+
+        .welcome-section h1 {
+            font-size: 34px;
+            color: #202944;
+            margin-bottom: 10px;
+        }
+
+        .welcome-section h1 span {
+            color: #6540d8;
+        }
+
+        .welcome-section p {
+            color: #68718b;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .role-badge {
+            display: inline-block;
+            margin-top: 17px;
+            padding: 9px 18px;
+            background: #e4ddff;
+            color: #5935ce;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 800;
+            text-transform: capitalize;
+        }
+
+        .welcome-icon {
+            width: 115px;
+            height: 115px;
+            border-radius: 25px;
+            background: linear-gradient(135deg, #8465f5, #5130ce);
+            display: grid;
+            place-items: center;
+            color: white;
+            font-size: 58px;
+            box-shadow: 0 12px 25px rgba(85, 55, 190, 0.2);
+        }
+
+        /* Dashboard heading */
+        .dashboard-heading {
+            margin: 40px 0 22px;
+        }
+
+        .dashboard-heading h2 {
+            font-size: 25px;
+            color: #202944;
+            margin-bottom: 8px;
+        }
+
+        .dashboard-heading p {
+            color: #7b8298;
+            font-size: 14px;
+        }
+
+        /* Cards */
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 22px;
+        }
+
+        .card {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+            background: white;
+            padding: 28px;
+            border: 1px solid #eeeaff;
+            border-radius: 20px;
+            min-height: 220px;
+            box-shadow: 0 8px 25px rgba(50, 35, 120, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-7px);
+            box-shadow: 0 15px 35px rgba(80, 55, 170, 0.12);
+            border-color: #c9bcff;
+        }
+
+        .icon {
+            width: 65px;
+            height: 65px;
+            display: grid;
+            place-items: center;
+            border-radius: 17px;
+            background: #efebff;
+            font-size: 32px;
+            margin-bottom: 20px;
+        }
+
+        .card h3 {
+            color: #26314e;
+            font-size: 19px;
+            margin-bottom: 11px;
+        }
+
+        .card p {
+            color: #737d96;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .card-link {
+            display: inline-block;
+            color: #6843dc;
+            font-size: 13px;
+            font-weight: 800;
+            margin-top: 18px;
+        }
+
+        /* Security information */
+        .security-banner {
+            margin-top: 30px;
+            padding: 23px 28px;
+            border-radius: 16px;
+            background: #eeeaff;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .security-icon {
+            font-size: 32px;
+        }
+
+        .security-banner h3 {
+            color: #5030bd;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .security-banner p {
+            color: #6d6687;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 25px;
+            margin-top: 40px;
+            border-top: 1px solid #e9e5f7;
+            color: #85839a;
+            font-size: 13px;
+        }
+
+        /* Responsive */
+        @media (max-width: 850px) {
+            .cards {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 550px) {
+            .navbar {
+                padding: 16px 5%;
+            }
+
+            .brand {
+                font-size: 22px;
+            }
+
+            .container {
+                margin: 25px auto;
+                padding: 0 15px;
+            }
+
+            .welcome-section {
+                padding: 25px;
+            }
+
+            .welcome-section h1 {
+                font-size: 27px;
+            }
+
+            .welcome-icon {
+                width: 75px;
+                height: 75px;
+                font-size: 38px;
+            }
+
+            .cards {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                min-height: auto;
+            }
+
+            .logout {
+                padding: 10px 15px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="brand">
+            <div class="brand-icon">✓</div>
+            <span>TrustVault</span>
+        </div>
+
+        <a href="{{ url_for('logout') }}" class="logout">
+            Sign Out →
+        </a>
+    </nav>
+
+    <main class="container">
+
+        <!-- Welcome section -->
+        <section class="welcome-section">
+            <div>
+                <div class="welcome-label">
+                    YOUR DOCUMENTS. YOUR SECURITY.
+                </div>
+
+                <h1>
+                    Welcome, <span>{{ username }}</span>!
+                </h1>
+
+                <p>
+                    Your secure digital document management dashboard.
+                    Manage your documents and control access from one place.
+                </p>
+
+                <div class="role-badge">
+                    Account Role: {{ role }}
+                </div>
+            </div>
+
+            <div class="welcome-icon">
+                🔐
+            </div>
+        </section>
+
+        <!-- Dashboard heading -->
+        <section class="dashboard-heading">
+            <h2>My Dashboard</h2>
+            <p>Access your TrustVault services below.</p>
+        </section>
+
+        <!-- Dashboard cards -->
+        <section class="cards">
+
+            <!-- Document Storage -->
+            <a href="{{ url_for('documents') }}" class="card">
+                <div class="icon">📁</div>
+                <h3>Document Storage</h3>
+                <p>
+                    Upload, store and manage your personal
+                    documents securely.
+                </p>
+                <span class="card-link">
+                    Open Documents →
+                </span>
+            </a>
+
+            <!-- Account Security -->
+            <div class="card">
+                <div class="icon">🛡️</div>
+                <h3>Account Security</h3>
+                <p>
+                    Your account is protected with password
+                    hashing and authentication.
+                </p>
+                <span class="card-link">
+                    Protected Account ✓
+                </span>
+            </div>
+
+            <!-- Document Sharing -->
+            <a href="{{ url_for('shared_documents') }}" class="card">
+                <div class="icon">🔗</div>
+                <h3>Document Sharing</h3>
+                <p>
+                    View documents that other authorized
+                    users have shared with you.
+                </p>
+                <span class="card-link">
+                    View Shared Documents →
+                </span>
+            </a>
+
+            <!-- Admin Audit Logs: Admin only -->
+            {% if role == 'admin' %}
+            <a href="{{ url_for('audit_logs') }}" class="card">
+                <div class="icon">📋</div>
+                <h3>Audit Logs</h3>
+                <p>
+                    Monitor document activities, user actions
+                    and important security events.
+                </p>
+                <span class="card-link">
+                    View Audit Logs →
+                </span>
+            </a>
+            {% endif %}
+
+        </section>
+
+        <!-- Security banner -->
+        <section class="security-banner">
+            <div class="security-icon">🔒</div>
+
+            <div>
+                <h3>Your Security Matters</h3>
+                <p>
+                    TrustVault helps protect your digital documents
+                    through authentication and controlled access.
+                </p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        © 2026 TrustVault | Secure Digital Document Management
+    </footer>
+
+</body>
+</html>

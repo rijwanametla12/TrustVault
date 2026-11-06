@@ -1,0 +1,113 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrustVault | Secure Document Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body class="home-page">
+
+    <!-- Navigation -->
+    <nav class="home-navbar">
+        <a href="{{ url_for('home') }}" class="brand">
+            <span class="brand-icon">✓</span>
+            <span>TrustVault</span>
+        </a>
+
+        <div class="nav-links">
+            <a href="{{ url_for('home') }}" class="nav-active">Home</a>
+            <a href="{{ url_for('login') }}">Login</a>
+            <a href="{{ url_for('register') }}" class="nav-register">Register</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <main>
+        <section class="hero-section">
+
+            <div class="hero-content">
+                <p class="hero-label">YOUR DOCUMENTS. YOUR CONTROL.</p>
+
+                <h1>
+                    Welcome to<br>
+                    <span>TrustVault</span>
+                </h1>
+
+                <p class="hero-description">
+                    Your secure digital document management system.
+                    Store, manage and share your important documents
+                    with confidence.
+                </p>
+
+                <div class="hero-buttons">
+                    <a href="{{ url_for('login') }}" class="primary-btn">
+                        ↪ Login
+                    </a>
+
+                    <a href="{{ url_for('register') }}" class="secondary-btn">
+                        ♙ Register
+                    </a>
+                </div>
+
+                <p class="hero-note">
+                    🔒 Secure access • Controlled sharing • Activity tracking
+                </p>
+            </div>
+
+            <div class="hero-visual">
+                <div class="visual-glow"></div>
+                <div class="document-card">
+                    <div class="document-top">TRUSTVAULT</div>
+                    <div class="document-symbol">📄</div>
+                    <div class="document-line"></div>
+                    <div class="document-line short"></div>
+                    <div class="document-line"></div>
+                    <div class="document-lock">🔒</div>
+                    <div class="document-check">✓</div>
+                </div>
+
+                <div class="floating-folder folder-one">📁</div>
+                <div class="floating-folder folder-two">🗂️</div>
+                <div class="floating-shield">🛡️</div>
+            </div>
+
+        </section>
+
+        <!-- Features -->
+        <section class="features-section">
+            <div class="feature-card">
+                <div class="feature-icon">🔐</div>
+                <div>
+                    <h3>Secure Storage</h3>
+                    <p>Keep your documents safe and private.</p>
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">👥</div>
+                <div>
+                    <h3>Controlled Sharing</h3>
+                    <p>Share documents with specific users.</p>
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🛡️</div>
+                <div>
+                    <h3>Audit Trail</h3>
+                    <p>Track important activities with logs.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="home-footer">
+            © 2026 TrustVault. Secure your digital world.
+        </footer>
+    </main>
+
+</body>
+</html>

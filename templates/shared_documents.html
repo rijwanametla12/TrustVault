@@ -1,0 +1,531 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TrustVault | Shared With Me</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #f7f6ff;
+            color: #202944;
+        }
+
+        /* Navigation */
+
+        .navbar {
+            background: white;
+            padding: 18px 7%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 3px 20px rgba(55, 40, 120, 0.07);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #202944;
+            font-size: 27px;
+            font-weight: 800;
+        }
+
+        .brand-icon {
+            width: 43px;
+            height: 46px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, #8060f5, #4823c9);
+            color: white;
+            font-size: 26px;
+            clip-path: polygon(
+                50% 0, 100% 20%, 90% 75%,
+                50% 100%, 10% 75%, 0 20%
+            );
+        }
+
+        .brand-subtitle {
+            color: #9290a5;
+            font-size: 10px;
+            letter-spacing: 2px;
+            margin-top: 4px;
+        }
+
+        .back-btn {
+            background: #eeeaff;
+            color: #5835ce;
+            text-decoration: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 700;
+            transition: 0.3s;
+        }
+
+        .back-btn:hover {
+            background: #5835ce;
+            color: white;
+        }
+
+        /* Main container */
+
+        .container {
+            max-width: 1150px;
+            margin: 45px auto;
+            padding: 0 25px;
+        }
+
+        /* Page heading */
+
+        .page-label {
+            color: #6946df;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+        }
+
+        .page-heading {
+            margin-bottom: 28px;
+        }
+
+        .page-heading h1 {
+            font-size: 32px;
+            color: #202944;
+            margin-bottom: 10px;
+        }
+
+        .page-heading p {
+            color: #737d96;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        /* Information banner */
+
+        .info-banner {
+            display: flex;
+            align-items: center;
+            gap: 17px;
+            padding: 22px;
+            margin-bottom: 28px;
+            background: linear-gradient(120deg, #eeeaff, #ffffff);
+            border: 1px solid #e5dfff;
+            border-radius: 16px;
+        }
+
+        .info-icon {
+            width: 55px;
+            height: 55px;
+            flex-shrink: 0;
+            display: grid;
+            place-items: center;
+            background: #e3dcff;
+            border-radius: 15px;
+            font-size: 27px;
+        }
+
+        .info-banner h3 {
+            color: #5030bd;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .info-banner p {
+            color: #73718c;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        /* Flash message */
+
+        .message {
+            padding: 14px 18px;
+            background: #e9f7ef;
+            color: #176b3a;
+            border: 1px solid #bde7cc;
+            border-radius: 10px;
+            margin-bottom: 18px;
+        }
+
+        /* Table section */
+
+        .section-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .section-heading h2 {
+            color: #26314e;
+            font-size: 22px;
+        }
+
+        .section-heading span {
+            color: #858ba0;
+            font-size: 13px;
+        }
+
+        .table-card {
+            background: white;
+            padding: 20px;
+            border-radius: 18px;
+            border: 1px solid #eeeaff;
+            box-shadow: 0 8px 25px rgba(50, 35, 120, 0.05);
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            min-width: 750px;
+            border-collapse: collapse;
+        }
+
+        th {
+            padding: 17px 15px;
+            text-align: left;
+            background: #eeeaff;
+            color: #5030bd;
+            font-size: 13px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        th:first-child {
+            border-radius: 9px 0 0 9px;
+        }
+
+        th:last-child {
+            border-radius: 0 9px 9px 0;
+        }
+
+        td {
+            padding: 19px 15px;
+            border-bottom: 1px solid #f0eef7;
+            color: #59637b;
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
+        tbody tr:hover {
+            background: #faf9ff;
+        }
+
+        .document-name {
+            color: #293552;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .owner-name {
+            color: #4c5875;
+            font-weight: 600;
+        }
+
+        /* Permission badge */
+
+        .permission {
+            display: inline-block;
+            padding: 7px 13px;
+            border-radius: 20px;
+            background: #e9e3ff;
+            color: #5935ce;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        /* Download button */
+
+        .download-btn {
+            display: inline-block;
+            padding: 10px 16px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #7650ed, #4c27c9);
+            color: white;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+            transition: 0.3s;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(89, 53, 211, 0.2);
+        }
+
+        /* Empty state */
+
+        .empty {
+            text-align: center;
+            padding: 55px 20px;
+            color: #858ba0;
+        }
+
+        .empty-icon {
+            display: block;
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .empty h3 {
+            color: #303a57;
+            font-size: 19px;
+            margin-bottom: 9px;
+        }
+
+        .empty p {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* Security note */
+
+        .security-note {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 25px;
+            padding: 18px 20px;
+            background: #f0edff;
+            border-radius: 13px;
+            color: #62558e;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .security-note span {
+            font-size: 25px;
+        }
+
+        /* Footer */
+
+        .footer {
+            text-align: center;
+            padding: 25px;
+            margin-top: 40px;
+            border-top: 1px solid #e9e5f7;
+            color: #85839a;
+            font-size: 13px;
+        }
+
+        /* Responsive */
+
+        @media (max-width: 600px) {
+            .navbar {
+                padding: 16px 5%;
+            }
+
+            .brand {
+                font-size: 22px;
+            }
+
+            .container {
+                margin: 25px auto;
+                padding: 0 15px;
+            }
+
+            .page-heading h1 {
+                font-size: 26px;
+            }
+
+            .table-card {
+                padding: 12px;
+            }
+
+            .info-banner {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+
+        <div class="brand">
+            <div class="brand-icon">✓</div>
+
+            <div>
+                <div>TrustVault</div>
+                <div class="brand-subtitle">
+                    YOUR DOCUMENTS. YOUR SECURITY.
+                </div>
+            </div>
+        </div>
+
+        <a href="{{ url_for('dashboard') }}" class="back-btn">
+            ← Dashboard
+        </a>
+
+    </nav>
+
+    <main class="container">
+
+        <!-- Page heading -->
+        <section class="page-heading">
+
+            <div class="page-label">
+                SECURE DOCUMENT ACCESS
+            </div>
+
+            <h1>📂 Shared With Me</h1>
+
+            <p>
+                Access documents that other authorized users
+                have securely shared with you.
+            </p>
+
+        </section>
+
+        <!-- Information banner -->
+        <section class="info-banner">
+
+            <div class="info-icon">🔐</div>
+
+            <div>
+                <h3>Your Shared Documents</h3>
+
+                <p>
+                    You can download documents shared with your account.
+                    Access depends on the permission granted by the owner.
+                </p>
+            </div>
+
+        </section>
+
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages() %}
+            {% for message in messages %}
+                <div class="message">{{ message }}</div>
+            {% endfor %}
+        {% endwith %}
+
+        <!-- Table heading -->
+        <section class="section-heading">
+
+            <h2>Available Documents</h2>
+
+            <span>
+                Documents shared with your account
+            </span>
+
+        </section>
+
+        <!-- Documents table -->
+        <section class="table-card">
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Document Name</th>
+                            <th>Shared By</th>
+                            <th>Permission</th>
+                            <th>Shared Date</th>
+                            <th>Download</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for document in documents %}
+
+                        <tr>
+
+                            <td class="document-name">
+                                📄 {{ document["original_filename"] }}
+                            </td>
+
+                            <td class="owner-name">
+                                {{ document["owner_name"] }}
+                            </td>
+
+                            <td>
+                                <span class="permission">
+                                    Viewer
+                                </span>
+                            </td>
+
+                            <td>
+                                {{ document["shared_date"] }}
+                            </td>
+
+                            <td>
+                                <a class="download-btn"
+                                   href="{{ url_for('download_document', document_id=document['id']) }}">
+                                    ↓ Download
+                                </a>
+                            </td>
+
+                        </tr>
+
+                        {% else %}
+
+                        <tr>
+                            <td colspan="5" class="empty">
+
+                                <span class="empty-icon">📂</span>
+
+                                <h3>No Shared Documents Yet</h3>
+
+                                <p>
+                                    Documents shared with your account
+                                    will appear here.
+                                </p>
+
+                            </td>
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </section>
+
+        <!-- Security note -->
+        <section class="security-note">
+
+            <span>🛡️</span>
+
+            <p>
+                Your access is controlled by document owners.
+                If access is revoked, you will no longer be able
+                to access that document.
+            </p>
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        © 2026 TrustVault | Secure Digital Document Management
+    </footer>
+
+</body>
+</html>

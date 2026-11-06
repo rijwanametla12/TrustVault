@@ -1,0 +1,27 @@
+# Python temporary files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Secrets and environment variables
+.env
+
+# Local database (contains personal data)
+instance/*.db
+instance/*.sqlite
+instance/*.sqlite3
+
+# Uploaded private documents
+uploads/*
+!uploads/.gitkeep
+
+# Editor files
+.vscode/
+
+# Operating system files
+.DS_Store
+Thumbs.db
