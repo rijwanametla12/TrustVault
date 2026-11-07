@@ -2,11 +2,14 @@
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyd
+*$py.class
 
 # Virtual environments
 venv/
 .venv/
 env/
+ENV/
 
 # Secrets and environment variables
 .env
@@ -14,7 +17,7 @@ env/
 !.env.example
 
 # Local database files
-instance/
+instance/*
 !instance/.gitkeep
 
 # Uploaded private documents
@@ -31,9 +34,17 @@ Thumbs.db
 # Test and coverage files
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 
 # Build files
 build/
 dist/
 *.egg-info/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
