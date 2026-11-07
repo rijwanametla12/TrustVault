@@ -3,3 +3,4 @@ pytest
 Werkzeug
 Flask-WTF
 supabase
+gunicorn
