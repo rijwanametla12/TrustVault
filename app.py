@@ -382,6 +382,7 @@ def home():
 # USER REGISTRATION
 # ==========================================
 
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
 
@@ -399,9 +400,7 @@ def register():
             )
 
         # Email validation
-        email_pattern = (
-           r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
-        )
+        email_pattern = r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
 
         if not re.fullmatch(email_pattern, email):
             return render_template(

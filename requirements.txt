@@ -2,3 +2,4 @@ Flask
 pytest
 Werkzeug
 Flask-WTF
+supabase
