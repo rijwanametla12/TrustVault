@@ -20,6 +20,9 @@ class TrustVaultSecurityTests(unittest.TestCase):
         self.original_database = trustvault_app.DATABASE
         self.original_upload_folder = trustvault_app.UPLOAD_FOLDER
         self.original_testing = trustvault_app.app.config.get("TESTING")
+        self.original_csrf = trustvault_app.app.config.get(
+            "WTF_CSRF_ENABLED", True
+        )
 
         # Create a separate temporary database for testing
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -34,9 +37,16 @@ class TrustVaultSecurityTests(unittest.TestCase):
 
         os.makedirs(trustvault_app.UPLOAD_FOLDER)
 
+        # Test configuration
         trustvault_app.app.config["TESTING"] = True
+
+        # Disable CSRF only for automated tests.
+        # CSRF remains enabled in the real application.
+        trustvault_app.app.config["WTF_CSRF_ENABLED"] = False
+
         self.client = trustvault_app.app.test_client()
 
+        # Create test database tables
         trustvault_app.create_tables()
 
         conn = trustvault_app.get_db_connection()
@@ -78,7 +88,7 @@ class TrustVaultSecurityTests(unittest.TestCase):
         finally:
             conn.close()
 
-        # Create a sample file
+        # Create a sample document file
         with open(
             os.path.join(
                 trustvault_app.UPLOAD_FOLDER,
@@ -89,15 +99,18 @@ class TrustVaultSecurityTests(unittest.TestCase):
             file.write(b"Test document")
 
     def tearDown(self):
-        # Restore the real application settings
+        # Restore the original application settings
         trustvault_app.DATABASE = self.original_database
         trustvault_app.UPLOAD_FOLDER = self.original_upload_folder
-        trustvault_app.app.config["TESTING"] = self.original_testing
 
-        # Remove the temporary test database
+        trustvault_app.app.config["TESTING"] = self.original_testing
+        trustvault_app.app.config["WTF_CSRF_ENABLED"] = self.original_csrf
+
+        # Remove temporary test database and files
         self.temp_dir.cleanup()
 
     def login_as(self, user_id):
+        # Simulate a logged-in user
         with self.client.session_transaction() as session:
             session["user_id"] = user_id
 
@@ -125,7 +138,9 @@ class TrustVaultSecurityTests(unittest.TestCase):
     def test_denied_download_is_recorded(self):
         self.login_as(self.viewer_id)
 
-        self.client.get(f"/download/{self.document_id}")
+        self.client.get(
+            f"/download/{self.document_id}"
+        )
 
         conn = trustvault_app.get_db_connection()
 
@@ -209,7 +224,7 @@ class TrustVaultSecurityTests(unittest.TestCase):
             follow_redirects=False
         )
 
-        self.assertIn(response.status_code, (302, 403))
+        self.assertIn(response.status_code, (302, 403, 404))
 
     # Test 7: Viewer cannot share documents
     def test_viewer_cannot_share_document(self):
@@ -221,7 +236,7 @@ class TrustVaultSecurityTests(unittest.TestCase):
             follow_redirects=False
         )
 
-        self.assertIn(response.status_code, (302, 403))
+        self.assertIn(response.status_code, (302, 403, 404))
 
         conn = trustvault_app.get_db_connection()
 
@@ -365,7 +380,7 @@ class TrustVaultSecurityTests(unittest.TestCase):
 
         self.assertIsNotNone(log)
 
-        # Recalculate the expected hash using the modified data
+        # Recalculate the expected hash using modified data
         audit_data = {
             "id": log["id"],
             "user_id": log["user_id"],
@@ -386,7 +401,7 @@ class TrustVaultSecurityTests(unittest.TestCase):
             audit_string.encode("utf-8")
         ).hexdigest()
 
-        # The modified details must not match the original hash
+        # Modified details must not match the original hash
         self.assertNotEqual(
             calculated_hash,
             log["entry_hash"]

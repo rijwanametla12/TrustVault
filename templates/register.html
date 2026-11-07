@@ -282,6 +282,13 @@
         <!-- Registration Form -->
         <form action="{{ url_for('register') }}" method="POST">
 
+            <!-- CSRF Protection Token -->
+            <input
+                type="hidden"
+                name="csrf_token"
+                value="{{ csrf_token() }}"
+            >
+
             <div class="form-group">
 
                 <label for="username">Username</label>
@@ -297,6 +304,7 @@
                         placeholder="Enter your username"
                         pattern="[A-Za-z]+"
                         title="Username must contain alphabets only"
+                        autocomplete="username"
                         required
                     >
 
@@ -317,6 +325,7 @@
                         id="email"
                         name="email"
                         placeholder="Enter your email address"
+                        autocomplete="email"
                         required
                     >
 
@@ -338,6 +347,7 @@
                         name="password"
                         placeholder="Create a password"
                         minlength="8"
+                        autocomplete="new-password"
                         required
                     >
 

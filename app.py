@@ -13,30 +13,39 @@ from datetime import datetime
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from flask_wtf.csrf import CSRFProtect
 
 # ==========================================
 # APPLICATION CONFIGURATION
 # ==========================================
 
 app = Flask(__name__)
+
 app.secret_key = os.environ.get(
     "SECRET_KEY",
     "development-only-change-this-secret-key"
 )
+# CSRF Protection
+csrf = CSRFProtect(app)
 
+# Session Security
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = (
     os.environ.get("COOKIE_SECURE", "0") == "1"
 )
+
+# Maximum upload size: 5 MB
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 
+# Database and Upload Paths
 DATABASE = os.path.join(app.instance_path, "trustvault.db")
 UPLOAD_FOLDER = os.path.join(app.root_path, "uploads")
 
 os.makedirs(app.instance_path, exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# Allowed File Extensions
 ALLOWED_EXTENSIONS = {"pdf", "docx", "png", "jpg", "jpeg"}
 
 # ==========================================
