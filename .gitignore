@@ -1,19 +1,21 @@
 # Python temporary files
 __pycache__/
 *.py[cod]
+*.pyo
 
-# Virtual environment
+# Virtual environments
 venv/
 .venv/
 env/
 
 # Secrets and environment variables
 .env
+.env.*
+!.env.example
 
-# Local database (contains personal data)
-instance/*.db
-instance/*.sqlite
-instance/*.sqlite3
+# Local database files
+instance/
+!instance/.gitkeep
 
 # Uploaded private documents
 uploads/*
@@ -25,3 +27,13 @@ uploads/*
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Test and coverage files
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build files
+build/
+dist/
+*.egg-info/
