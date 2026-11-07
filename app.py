@@ -428,7 +428,7 @@ def register():
                 INSERT INTO users (
                     username, email, password_hash, role
                 )
-                VALUES (?, ?, ?, 'owner')
+                VALUES (?, ?, ?, 'viewer')
             """, (username, email, password_hash))
 
             conn.commit()
