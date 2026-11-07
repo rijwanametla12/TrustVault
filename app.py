@@ -9,6 +9,8 @@ import re
 import uuid
 import hashlib
 import json
+import io 
+import zipfile 
 from datetime import datetime
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -614,6 +616,12 @@ def documents():
 @role_required("owner", "admin")
 def upload_document():
 
+    user = current_user()
+
+    if not user:
+        flash("Please login first.")
+        return redirect(url_for("login"))
+
     if "document" not in request.files:
         flash("Please select a file.")
         return redirect(url_for("documents"))
@@ -649,59 +657,65 @@ def upload_document():
 
     extension = original_filename.rsplit(".", 1)[1].lower()
     stored_filename = f"{uuid.uuid4().hex}.{extension}"
-
     file_path = os.path.join(UPLOAD_FOLDER, stored_filename)
+
+    conn = None
 
     try:
         file.save(file_path)
 
         conn = get_db_connection()
 
-        try:
-            cursor = conn.execute("""
-                INSERT INTO documents (
-                    original_filename,
-                    stored_filename,
-                    owner_id,
-                    file_size
-                )
-                VALUES (?, ?, ?, ?)
-            """, (
+        cursor = conn.execute("""
+            INSERT INTO documents (
                 original_filename,
                 stored_filename,
-                current_user()["id"],
+                owner_id,
                 file_size
-            ))
+            )
+            VALUES (?, ?, ?, ?)
+        """, (
+            original_filename,
+            stored_filename,
+            user["id"],
+            file_size
+        ))
 
-            document_id = cursor.lastrowid
-            conn.commit()
+        document_id = cursor.lastrowid
 
-        finally:
-            conn.close()
-
-        log_action(
-            current_user()["id"],
+        conn.execute("""
+            INSERT INTO audit_logs (
+                user_id,
+                action,
+                document_id,
+                details
+            )
+            VALUES (?, ?, ?, ?)
+        """, (
+            user["id"],
             "UPLOAD",
             document_id,
             f"Uploaded document: {original_filename}"
-        )
+        ))
+
+        conn.commit()
 
         flash("Document uploaded successfully!")
 
     except Exception:
+        if conn:
+            conn.rollback()
+
         if os.path.exists(file_path):
             os.remove(file_path)
 
         raise
 
+    finally:
+        if conn:
+            conn.close()
+
     return redirect(url_for("documents"))
-
-# ==========================================
-# DOWNLOAD DOCUMENT
-# OWNER, ADMIN AND AUTHORIZED VIEWER
-# ==========================================
-
-
 
 # ==========================================
 # SECURE DOWNLOAD DOCUMENT
