@@ -5,6 +5,7 @@ import tempfile
 import unittest
 import hashlib
 import json
+import io
 
 # Find the main TrustVault project folder
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -40,8 +41,7 @@ class TrustVaultSecurityTests(unittest.TestCase):
         # Test configuration
         trustvault_app.app.config["TESTING"] = True
 
-        # Disable CSRF only for automated tests.
-        # CSRF remains enabled in the real application.
+        # Disable CSRF for normal automated tests
         trustvault_app.app.config["WTF_CSRF_ENABLED"] = False
 
         self.client = trustvault_app.app.test_client()
@@ -74,6 +74,13 @@ class TrustVaultSecurityTests(unittest.TestCase):
             """)
             self.viewer_id = cursor.lastrowid
 
+            cursor = conn.execute("""
+                INSERT INTO users
+                (username, email, password_hash, role)
+                VALUES ('admin1', 'admin1@test.com', 'test', 'admin')
+            """)
+            self.admin_id = cursor.lastrowid
+
             # Create a document owned by owner1
             cursor = conn.execute("""
                 INSERT INTO documents
@@ -99,7 +106,7 @@ class TrustVaultSecurityTests(unittest.TestCase):
             file.write(b"Test document")
 
     def tearDown(self):
-        # Restore the original application settings
+        # Restore original application settings
         trustvault_app.DATABASE = self.original_database
         trustvault_app.UPLOAD_FOLDER = self.original_upload_folder
 
@@ -406,6 +413,54 @@ class TrustVaultSecurityTests(unittest.TestCase):
             calculated_hash,
             log["entry_hash"]
         )
+
+    # Test 12: CSRF protection rejects request without token
+    def test_csrf_rejects_request_without_token(self):
+        trustvault_app.app.config["WTF_CSRF_ENABLED"] = True
+
+        response = self.client.post(
+            "/logout",
+            follow_redirects=False
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    # Test 13: Only Admin can access audit logs
+    def test_only_admin_can_access_audit_logs(self):
+        # Viewer should be denied
+        self.login_as(self.viewer_id)
+        viewer_response = self.client.get("/audit-logs")
+        self.assertEqual(viewer_response.status_code, 403)
+
+        # Owner should be denied
+        self.login_as(self.owner1_id)
+        owner_response = self.client.get("/audit-logs")
+        self.assertEqual(owner_response.status_code, 403)
+
+        # Admin should be allowed
+        self.login_as(self.admin_id)
+        admin_response = self.client.get("/audit-logs")
+        self.assertEqual(admin_response.status_code, 200)
+
+    # Test 14: Reject fake PDF content
+    def test_rejects_fake_pdf_content(self):
+        fake_pdf = io.BytesIO(b"This is not a PDF file")
+
+        result = trustvault_app.valid_file_content(
+            fake_pdf, "pdf"
+        )
+
+        self.assertFalse(result)
+
+    # Test 15: Accept PDF signature
+    def test_accepts_pdf_signature(self):
+        valid_pdf = io.BytesIO(b"%PDF-1.7 test content")
+
+        result = trustvault_app.valid_file_content(
+            valid_pdf, "pdf"
+        )
+
+        self.assertTrue(result)
 
 
 if __name__ == "__main__":

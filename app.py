@@ -528,12 +528,47 @@ def can_manage_document(user, document):
 # ==========================================
 
 def allowed_file(filename):
-
     return (
-        "." in filename
+        bool(filename)
+        and "." in filename
         and filename.rsplit(".", 1)[1].lower()
         in ALLOWED_EXTENSIONS
     )
+
+
+def valid_file_content(file, extension):
+    """Check whether uploaded content matches its file extension."""
+    try:
+        file.seek(0)
+        header = file.read(16)
+        file.seek(0)
+
+        if extension == "pdf":
+            return header.startswith(b"%PDF-")
+
+        if extension == "png":
+            return header.startswith(b"\x89PNG\r\n\x1a\n")
+
+        if extension in ("jpg", "jpeg"):
+            return header.startswith(b"\xff\xd8\xff")
+
+        if extension == "docx":
+            with zipfile.ZipFile(file) as archive:
+                names = set(archive.namelist())
+
+                return (
+                    "[Content_Types].xml" in names
+                    and "word/document.xml" in names
+                )
+
+        return False
+
+    except (OSError, zipfile.BadZipFile, ValueError):
+        return False
+
+    finally:
+        file.seek(0)
+
 
 # ==========================================
 # HOME PAGE
@@ -817,6 +852,7 @@ def documents():
     )
 
 
+
 # ==========================================
 # SECURE DOCUMENT UPLOAD
 # OWNER AND ADMIN ONLY
@@ -865,6 +901,11 @@ def upload_document():
         return redirect(url_for("documents"))
 
     extension = original_filename.rsplit(".", 1)[1].lower()
+
+    # Validate that file content matches its extension
+    if not valid_file_content(file, extension):
+        flash("File content does not match the selected file type.")
+        return redirect(url_for("documents"))
 
     stored_filename = f"{uuid.uuid4().hex}.{extension}"
 
