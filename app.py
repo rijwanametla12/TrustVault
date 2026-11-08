@@ -31,10 +31,15 @@ from flask_wtf.csrf import CSRFProtect
 
 app = Flask(__name__)
 
-app.secret_key = os.environ.get(
-    "SECRET_KEY",
-    "development-only-change-this-secret-key"
-)
+# Secret Key — required from environment
+SECRET_KEY = os.environ.get("SECRET_KEY")
+
+if not SECRET_KEY:
+    raise RuntimeError(
+        "SECRET_KEY environment variable must be set."
+    )
+
+app.secret_key = SECRET_KEY
 
 # CSRF Protection
 csrf = CSRFProtect(app)
@@ -66,10 +71,12 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Allowed File Extensions
 ALLOWED_EXTENSIONS = {
-    "pdf", "docx", "png", "jpg", "jpeg"
+    "pdf",
+    "docx",
+    "png",
+    "jpg",
+    "jpeg"
 }
-
-
 # ==========================================
 # DATABASE CONNECTION
 # ==========================================

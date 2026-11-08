@@ -1,3 +1,4 @@
+
 # Python temporary files
 __pycache__/
 *.py[cod]
@@ -48,3 +49,11 @@ dist/
 # Temporary files
 *.tmp
 *.bak
+
+# Project archives
+*.zip
+*.rar
+
+# Backup Python files
+app_before_*.py
+TrustVault_app_*.py
