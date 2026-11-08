@@ -88,12 +88,16 @@ def get_db_connection():
 # CREATE DATABASE TABLES
 # ==========================================
 
+
 def create_tables():
 
     conn = get_db_connection()
 
     try:
-        # Users table
+        # ==========================================
+        # USERS TABLE
+        # ==========================================
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,7 +124,64 @@ def create_tables():
                 CHECK(role IN ('admin', 'owner', 'viewer'))
             """)
 
-        # Documents table
+        # ==========================================
+        # ONE-TIME EXISTING USER ROLE MIGRATION
+        # ==========================================
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS app_migrations (
+                migration_key TEXT PRIMARY KEY,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        conn.execute("BEGIN IMMEDIATE")
+
+        migration = conn.execute("""
+            SELECT migration_key
+            FROM app_migrations
+            WHERE migration_key = 'initial_role_assignment_v1'
+        """).fetchone()
+
+        if migration is None:
+
+            existing_users = conn.execute("""
+                SELECT id
+                FROM users
+                ORDER BY id ASC
+            """).fetchall()
+
+            for index, account in enumerate(existing_users):
+
+                if index == 0:
+                    assigned_role = "admin"
+
+                elif index == 1:
+                    assigned_role = "owner"
+
+                else:
+                    assigned_role = "viewer"
+
+                conn.execute("""
+                    UPDATE users
+                    SET role = ?
+                    WHERE id = ?
+                """, (
+                    assigned_role,
+                    account["id"]
+                ))
+
+            conn.execute("""
+                INSERT INTO app_migrations (migration_key)
+                VALUES ('initial_role_assignment_v1')
+            """)
+
+        conn.commit()
+
+        # ==========================================
+        # DOCUMENTS TABLE
+        # ==========================================
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS documents (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,7 +195,10 @@ def create_tables():
             )
         """)
 
-        # Document sharing table
+        # ==========================================
+        # DOCUMENT SHARING TABLE
+        # ==========================================
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS document_shares (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -151,7 +215,10 @@ def create_tables():
             )
         """)
 
-        # Audit logs table
+        # ==========================================
+        # AUDIT LOGS TABLE
+        # ==========================================
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS audit_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -199,13 +266,18 @@ def create_tables():
                 ADD COLUMN chain_id INTEGER NOT NULL DEFAULT 1
             """)
 
-        # Remove mutable foreign-key relationships from audit table
+        # ==========================================
+        # REMOVE MUTABLE AUDIT FOREIGN KEYS
+        # ==========================================
+
         foreign_keys = conn.execute(
             "PRAGMA foreign_key_list(audit_logs)"
         ).fetchall()
 
         if foreign_keys:
+
             conn.commit()
+
             conn.execute("PRAGMA foreign_keys = OFF")
             conn.execute("BEGIN IMMEDIATE")
 
@@ -234,14 +306,19 @@ def create_tables():
             """)
 
             conn.execute("DROP TABLE audit_logs")
+
             conn.execute(
                 "ALTER TABLE audit_logs_new RENAME TO audit_logs"
             )
 
             conn.commit()
+
             conn.execute("PRAGMA foreign_keys = ON")
 
-        # Track active hash-chain segment
+        # ==========================================
+        # AUDIT CHAIN STATE
+        # ==========================================
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS audit_chain_state (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -263,7 +340,10 @@ def create_tables():
             VALUES (1, ?)
         """, (initial_active_chain,))
 
-        # Initialize hashes for older audit records
+        # ==========================================
+        # INITIALIZE OLD AUDIT LOG HASHES
+        # ==========================================
+
         previous_hash = "GENESIS"
 
         old_logs = conn.execute("""
@@ -323,62 +403,6 @@ def create_tables():
 
 # Create tables when application starts
 create_tables()
-
-
-# ==========================================
-# TEMPORARY ADMIN ACCOUNT BOOTSTRAP
-# Remove after successful promotion
-# ==========================================
-
-def promote_bootstrap_admin():
-
-    username = os.environ.get(
-        "ADMIN_BOOTSTRAP_USERNAME", ""
-    ).strip()
-
-    if not username:
-        return
-
-    conn = get_db_connection()
-
-    try:
-        matches = conn.execute("""
-            SELECT id
-            FROM users
-            WHERE LOWER(username) = LOWER(?)
-        """, (username,)).fetchall()
-
-        if len(matches) != 1:
-            app.logger.error(
-                "Admin promotion failed: username not found "
-                "or is not unique."
-            )
-            return
-
-        conn.execute("""
-            UPDATE users
-            SET role = 'admin'
-            WHERE id = ?
-        """, (matches[0]["id"],))
-
-        conn.commit()
-
-        app.logger.info(
-            "Bootstrap admin promotion completed."
-        )
-
-    except Exception:
-        conn.rollback()
-        app.logger.exception(
-            "Admin bootstrap failed."
-        )
-
-    finally:
-        conn.close()
-
-
-promote_bootstrap_admin()
-
 
 # ==========================================
 # AUDIT LOG HELPER
@@ -667,12 +691,14 @@ def register():
 
         password = request.form.get("password", "")
 
+        # Username validation
         if not re.fullmatch(r"[A-Za-z]+", username):
             return render_template(
                 "register.html",
                 error="Username must contain English letters only."
             )
 
+        # Email validation
         email_pattern = (
             r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
         )
@@ -683,6 +709,7 @@ def register():
                 error="Please enter a valid email address."
             )
 
+        # Password validation
         if len(password) < 8:
             return render_template(
                 "register.html",
@@ -694,17 +721,43 @@ def register():
         conn = get_db_connection()
 
         try:
+            # Lock database during role assignment and registration
             conn.execute("BEGIN IMMEDIATE")
 
+            # Get the highest user ID ever assigned.
+            # AUTOINCREMENT preserves this value even after deletion.
+            result = conn.execute("""
+                SELECT COALESCE(
+                    (SELECT seq
+                     FROM sqlite_sequence
+                     WHERE name = 'users'),
+                    0
+                )
+            """).fetchone()
+
+            last_registered_id = result[0]
+
+            # Assign role according to registration order
+            if last_registered_id == 0:
+                assigned_role = "admin"
+
+            elif last_registered_id == 1:
+                assigned_role = "owner"
+
+            else:
+                assigned_role = "viewer"
+
+            # Register user with automatically assigned role
             conn.execute("""
                 INSERT INTO users (
                     username, email, password_hash, role
                 )
-                VALUES (?, ?, ?, 'viewer')
+                VALUES (?, ?, ?, ?)
             """, (
                 username,
                 email,
-                password_hash
+                password_hash,
+                assigned_role
             ))
 
             conn.commit()
@@ -720,6 +773,15 @@ def register():
             return render_template(
                 "register.html",
                 error="This email is already registered."
+            )
+
+        except Exception:
+            conn.rollback()
+            app.logger.exception("User registration failed")
+
+            return render_template(
+                "register.html",
+                error="Registration failed. Please try again."
             )
 
         finally:

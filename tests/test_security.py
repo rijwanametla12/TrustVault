@@ -463,5 +463,93 @@ class TrustVaultSecurityTests(unittest.TestCase):
         self.assertTrue(result)
 
 
+class RegistrationRoleTests(unittest.TestCase):
+
+    def setUp(self):
+        self.original_database = trustvault_app.DATABASE
+        self.original_upload_folder = trustvault_app.UPLOAD_FOLDER
+        self.original_testing = trustvault_app.app.config.get("TESTING")
+        self.original_csrf = trustvault_app.app.config.get(
+            "WTF_CSRF_ENABLED", True
+        )
+
+        self.temp_dir = tempfile.TemporaryDirectory()
+
+        trustvault_app.DATABASE = os.path.join(
+            self.temp_dir.name, "registration_test.db"
+        )
+
+        trustvault_app.UPLOAD_FOLDER = os.path.join(
+            self.temp_dir.name, "uploads"
+        )
+
+        os.makedirs(trustvault_app.UPLOAD_FOLDER)
+
+        trustvault_app.app.config["TESTING"] = True
+        trustvault_app.app.config["WTF_CSRF_ENABLED"] = False
+
+        self.client = trustvault_app.app.test_client()
+
+        trustvault_app.create_tables()
+
+    def tearDown(self):
+        trustvault_app.DATABASE = self.original_database
+        trustvault_app.UPLOAD_FOLDER = self.original_upload_folder
+
+        trustvault_app.app.config["TESTING"] = self.original_testing
+        trustvault_app.app.config["WTF_CSRF_ENABLED"] = self.original_csrf
+
+        self.temp_dir.cleanup()
+
+    # Test 16: First account Admin, second Owner, remaining Viewers
+    def test_registration_assigns_correct_roles(self):
+
+        accounts = [
+            ("firstuser", "first@test.com", "admin"),
+            ("seconduser", "second@test.com", "owner"),
+            ("thirduser", "third@test.com", "viewer"),
+            ("fourthuser", "fourth@test.com", "viewer")
+        ]
+
+        for index, (username, email, expected_role) in enumerate(accounts):
+
+            response = self.client.post(
+                "/register",
+                data={
+                    "username": username,
+                    "email": email,
+                    "password": "Password123",
+                    # Attempt to manipulate the role
+                    "role": "admin"
+                }
+            )
+
+            self.assertEqual(
+                response.status_code,
+                200,
+                f"Registration failed for account {index + 1}"
+            )
+
+            conn = trustvault_app.get_db_connection()
+
+            try:
+                user = conn.execute("""
+                    SELECT role
+                    FROM users
+                    WHERE email = ?
+                """, (email,)).fetchone()
+
+            finally:
+                conn.close()
+
+            self.assertIsNotNone(user)
+
+            self.assertEqual(
+                user["role"],
+                expected_role,
+                f"Incorrect role for registration number {index + 1}"
+            )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
