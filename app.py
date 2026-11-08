@@ -3,19 +3,27 @@ from flask import (
     Flask, render_template, request, redirect, url_for,
     session, send_from_directory, abort, flash
 )
+
 import sqlite3
 import os
 import re
 import uuid
 import hashlib
 import json
-import io 
-import zipfile 
+import io
+import zipfile
+
 from datetime import datetime
 from functools import wraps
-from werkzeug.security import generate_password_hash, check_password_hash
+
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash
+)
+
 from werkzeug.utils import secure_filename
 from flask_wtf.csrf import CSRFProtect
+
 
 # ==========================================
 # APPLICATION CONFIGURATION
@@ -27,12 +35,14 @@ app.secret_key = os.environ.get(
     "SECRET_KEY",
     "development-only-change-this-secret-key"
 )
+
 # CSRF Protection
 csrf = CSRFProtect(app)
 
 # Session Security
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
 app.config["SESSION_COOKIE_SECURE"] = (
     os.environ.get("COOKIE_SECURE", "0") == "1"
 )
@@ -41,29 +51,45 @@ app.config["SESSION_COOKIE_SECURE"] = (
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
 
 # Database and Upload Paths
-DATABASE = os.path.join(app.instance_path, "trustvault.db")
-UPLOAD_FOLDER = os.path.join(app.root_path, "uploads")
+DATABASE = os.path.join(
+    app.instance_path,
+    "trustvault.db"
+)
+
+UPLOAD_FOLDER = os.path.join(
+    app.root_path,
+    "uploads"
+)
 
 os.makedirs(app.instance_path, exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Allowed File Extensions
-ALLOWED_EXTENSIONS = {"pdf", "docx", "png", "jpg", "jpeg"}
+ALLOWED_EXTENSIONS = {
+    "pdf", "docx", "png", "jpg", "jpeg"
+}
+
 
 # ==========================================
 # DATABASE CONNECTION
 # ==========================================
 
 def get_db_connection():
+
     conn = sqlite3.connect(DATABASE)
+
     conn.row_factory = sqlite3.Row
+
     conn.execute("PRAGMA foreign_keys = ON")
+
     return conn
 
 # ==========================================
 # CREATE DATABASE TABLES
 # ==========================================
+
 def create_tables():
+
     conn = get_db_connection()
 
     try:
@@ -74,22 +100,23 @@ def create_tables():
                 username TEXT NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'owner'
+                role TEXT NOT NULL DEFAULT 'viewer'
                     CHECK(role IN ('admin', 'owner', 'viewer'))
             )
         """)
 
-        # Update older users table if role column is missing
+        # Check existing users table
         columns = conn.execute(
             "PRAGMA table_info(users)"
         ).fetchall()
 
         column_names = [column["name"] for column in columns]
 
+        # Add role column if it does not exist
         if "role" not in column_names:
             conn.execute("""
                 ALTER TABLE users
-                ADD COLUMN role TEXT NOT NULL DEFAULT 'owner'
+                ADD COLUMN role TEXT NOT NULL DEFAULT 'viewer'
                 CHECK(role IN ('admin', 'owner', 'viewer'))
             """)
 
@@ -103,7 +130,7 @@ def create_tables():
                 file_size INTEGER NOT NULL,
                 upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (owner_id)
-                REFERENCES users(id) ON DELETE CASCADE
+                    REFERENCES users(id) ON DELETE CASCADE
             )
         """)
 
@@ -118,13 +145,13 @@ def create_tables():
                 shared_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(document_id, shared_with_user_id),
                 FOREIGN KEY (document_id)
-                REFERENCES documents(id) ON DELETE CASCADE,
+                    REFERENCES documents(id) ON DELETE CASCADE,
                 FOREIGN KEY (shared_with_user_id)
-                REFERENCES users(id) ON DELETE CASCADE
+                    REFERENCES users(id) ON DELETE CASCADE
             )
         """)
 
-        # Audit trail table
+        # Audit logs table
         conn.execute("""
             CREATE TABLE IF NOT EXISTS audit_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -136,13 +163,13 @@ def create_tables():
                 previous_hash TEXT,
                 entry_hash TEXT,
                 FOREIGN KEY (user_id)
-                REFERENCES users(id) ON DELETE SET NULL,
+                    REFERENCES users(id) ON DELETE SET NULL,
                 FOREIGN KEY (document_id)
-                REFERENCES documents(id) ON DELETE SET NULL
+                    REFERENCES documents(id) ON DELETE SET NULL
             )
         """)
 
-        # Migration: add hash columns to older audit_logs tables
+        # Check audit table columns
         audit_columns = conn.execute(
             "PRAGMA table_info(audit_logs)"
         ).fetchall()
@@ -163,17 +190,80 @@ def create_tables():
                 ADD COLUMN entry_hash TEXT
             """)
 
-        # Initialize hashes for older audit records that do not have them
+        # Add chain identifiers. Existing records remain in legacy chain 1.
+        chain_id_added = "chain_id" not in audit_column_names
+        if chain_id_added:
+            conn.execute("""
+                ALTER TABLE audit_logs
+                ADD COLUMN chain_id INTEGER NOT NULL DEFAULT 1
+            """)
+
+        # Remove mutable foreign-key relationships from the audit table.
+        # This preserves the recorded user/document IDs when those entities
+        # are later deleted. Existing values and hashes are copied unchanged.
+        foreign_keys = conn.execute(
+            "PRAGMA foreign_key_list(audit_logs)"
+        ).fetchall()
+        if foreign_keys:
+            conn.commit()
+            conn.execute("PRAGMA foreign_keys = OFF")
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute("""
+                CREATE TABLE audit_logs_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    action TEXT NOT NULL,
+                    document_id INTEGER,
+                    details TEXT,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    previous_hash TEXT,
+                    entry_hash TEXT,
+                    chain_id INTEGER NOT NULL DEFAULT 1
+                )
+            """)
+            conn.execute("""
+                INSERT INTO audit_logs_new
+                    (id, user_id, action, document_id, details, timestamp,
+                     previous_hash, entry_hash, chain_id)
+                SELECT id, user_id, action, document_id, details, timestamp,
+                       previous_hash, entry_hash, chain_id
+                FROM audit_logs
+                ORDER BY id
+            """)
+            conn.execute("DROP TABLE audit_logs")
+            conn.execute("ALTER TABLE audit_logs_new RENAME TO audit_logs")
+            conn.commit()
+            conn.execute("PRAGMA foreign_keys = ON")
+
+        # Track the active hash-chain segment. Existing history is never
+        # silently rehashed; new entries start a separate segment.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS audit_chain_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                active_chain_id INTEGER NOT NULL
+            )
+        """)
+        existing_count = conn.execute(
+            "SELECT COUNT(*) FROM audit_logs"
+        ).fetchone()[0]
+        initial_active_chain = 2 if chain_id_added and existing_count else 1
+        conn.execute("""
+            INSERT OR IGNORE INTO audit_chain_state (id, active_chain_id)
+            VALUES (1, ?)
+        """, (initial_active_chain,))
+
+        # Initialize hashes for older audit records
         previous_hash = "GENESIS"
 
         old_logs = conn.execute("""
-            SELECT id, user_id, action, document_id, details, timestamp,
-                   previous_hash, entry_hash
+            SELECT id, user_id, action, document_id,
+                   details, timestamp, previous_hash, entry_hash
             FROM audit_logs
             ORDER BY id ASC
         """).fetchall()
 
         for log in old_logs:
+
             if log["entry_hash"]:
                 previous_hash = log["entry_hash"]
                 continue
@@ -202,7 +292,11 @@ def create_tables():
                 UPDATE audit_logs
                 SET previous_hash = ?, entry_hash = ?
                 WHERE id = ?
-            """, (previous_hash, entry_hash, log["id"]))
+            """, (
+                previous_hash,
+                entry_hash,
+                log["id"]
+            ))
 
             previous_hash = entry_hash
 
@@ -216,86 +310,89 @@ def create_tables():
         conn.close()
 
 
+# Create tables when application starts
 create_tables()
 
 # ==========================================
 # AUDIT LOG HELPER
 # ==========================================
+
+def append_audit_log(conn, user_id, action, document_id=None, details=""):
+    """Append an immutable, hash-chained audit entry to the active chain."""
+
+    details = str(details or "")
+    action = str(action)
+
+    state = conn.execute("""
+        SELECT active_chain_id
+        FROM audit_chain_state
+        WHERE id = 1
+    """).fetchone()
+    chain_id = state["active_chain_id"] if state else 1
+
+    previous = conn.execute("""
+        SELECT entry_hash
+        FROM audit_logs
+        WHERE chain_id = ?
+        ORDER BY id DESC
+        LIMIT 1
+    """, (chain_id,)).fetchone()
+
+    if previous:
+        previous_hash = previous["entry_hash"]
+        if not previous_hash:
+            raise ValueError("Previous audit record has no hash.")
+    else:
+        previous_hash = "GENESIS"
+
+    timestamp = datetime.now().astimezone().isoformat()
+
+    cursor = conn.execute("""
+        INSERT INTO audit_logs (
+            user_id, action, document_id, details, timestamp,
+            previous_hash, entry_hash, chain_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
+    """, (
+        user_id, action, document_id, details, timestamp,
+        previous_hash, chain_id
+    ))
+
+    entry_id = cursor.lastrowid
+    audit_data = {
+        "id": entry_id,
+        "user_id": user_id,
+        "action": action,
+        "document_id": document_id,
+        "details": details,
+        "timestamp": timestamp,
+        "previous_hash": previous_hash
+    }
+    audit_string = json.dumps(
+        audit_data, sort_keys=True, separators=(",", ":")
+    )
+    entry_hash = hashlib.sha256(audit_string.encode("utf-8")).hexdigest()
+
+    conn.execute(
+        "UPDATE audit_logs SET entry_hash = ? WHERE id = ?",
+        (entry_hash, entry_id)
+    )
+
+
 def log_action(user_id, action, document_id=None, details=""):
+
     conn = get_db_connection()
 
     try:
-        # Prevent two simultaneous log entries from using the same previous hash
         conn.execute("BEGIN IMMEDIATE")
 
-        # Get the most recent audit entry
-        previous = conn.execute("""
-            SELECT entry_hash
-            FROM audit_logs
-            ORDER BY id DESC
-            LIMIT 1
-        """).fetchone()
-
-        previous_hash = (
-            previous["entry_hash"]
-            if previous and previous["entry_hash"]
-            else "GENESIS"
-        )
-
-        # Create timestamp
-        timestamp = datetime.now().astimezone().isoformat()
-
-        # Insert the entry first to obtain its database ID
-        cursor = conn.execute("""
-            INSERT INTO audit_logs (
-                user_id,
-                action,
-                document_id,
-                details,
-                timestamp,
-                previous_hash,
-                entry_hash
-            )
-            VALUES (?, ?, ?, ?, ?, ?, NULL)
-        """, (
+        append_audit_log(
+            conn,
             user_id,
             action,
             document_id,
-            details,
-            timestamp,
-            previous_hash
-        ))
-
-        entry_id = cursor.lastrowid
-
-        # Prepare audit data for hashing
-        audit_data = {
-            "id": entry_id,
-            "user_id": user_id,
-            "action": action,
-            "document_id": document_id,
-            "details": details,
-            "timestamp": timestamp,
-            "previous_hash": previous_hash
-        }
-
-        # Generate SHA-256 hash
-        audit_string = json.dumps(
-            audit_data,
-            sort_keys=True,
-            separators=(",", ":")
+            details
         )
-
-        entry_hash = hashlib.sha256(
-            audit_string.encode("utf-8")
-        ).hexdigest()
-
-        # Save the generated hash
-        conn.execute("""
-            UPDATE audit_logs
-            SET entry_hash = ?
-            WHERE id = ?
-        """, (entry_hash, entry_id))
 
         conn.commit()
 
@@ -305,11 +402,70 @@ def log_action(user_id, action, document_id=None, details=""):
 
     finally:
         conn.close()
+
+
+def verify_audit_chain():
+    """Verify every audit-chain segment and report all integrity failures."""
+
+    conn = get_db_connection()
+    try:
+        logs = conn.execute("""
+            SELECT id, user_id, action, document_id, details, timestamp,
+                   previous_hash, entry_hash, chain_id
+            FROM audit_logs
+            ORDER BY chain_id ASC, id ASC
+        """).fetchall()
+
+        failures = []
+        chain_ids = sorted({log["chain_id"] for log in logs})
+        for chain_id in chain_ids:
+            expected_previous_hash = "GENESIS"
+            chain_valid = True
+            for log in (item for item in logs if item["chain_id"] == chain_id):
+                if log["previous_hash"] != expected_previous_hash:
+                    failures.append(
+                        f"Broken hash chain in segment {chain_id} "
+                        f"at log ID {log['id']}"
+                    )
+                    chain_valid = False
+                    # The next record's previous_hash may still point to this
+                    # record, so continue hash checks from the stored hash.
+                audit_data = {
+                    "id": log["id"],
+                    "user_id": log["user_id"],
+                    "action": log["action"],
+                    "document_id": log["document_id"],
+                    "details": str(log["details"] or ""),
+                    "timestamp": log["timestamp"],
+                    "previous_hash": log["previous_hash"]
+                }
+                audit_string = json.dumps(
+                    audit_data, sort_keys=True, separators=(",", ":")
+                )
+                calculated_hash = hashlib.sha256(
+                    audit_string.encode("utf-8")
+                ).hexdigest()
+                if calculated_hash != log["entry_hash"]:
+                    failures.append(
+                        f"Integrity failure in segment {chain_id} "
+                        f"at log ID {log['id']}"
+                    )
+                    chain_valid = False
+                expected_previous_hash = log["entry_hash"]
+
+        if failures:
+            return False, "; ".join(failures)
+        return True, "All audit-chain segments passed integrity verification."
+    finally:
+        conn.close()
+
+
 # ==========================================
 # CURRENT USER
 # ==========================================
 
 def current_user():
+
     user_id = session.get("user_id")
 
     if user_id is None:
@@ -327,15 +483,18 @@ def current_user():
     finally:
         conn.close()
 
+
 # ==========================================
 # ROLE-BASED ACCESS CONTROL
 # ==========================================
 
 def role_required(*allowed_roles):
+
     def decorator(function):
 
         @wraps(function)
         def wrapper(*args, **kwargs):
+
             user = current_user()
 
             if user is None:
@@ -352,20 +511,24 @@ def role_required(*allowed_roles):
     return decorator
 
 
-# Admin can manage all documents.
-# Owner can manage only their own documents.
+# ==========================================
+# DOCUMENT PERMISSION HELPER
+# ==========================================
 
 def can_manage_document(user, document):
+
     return (
         user["role"] == "admin"
         or document["owner_id"] == user["id"]
     )
+
 
 # ==========================================
 # FILE VALIDATION
 # ==========================================
 
 def allowed_file(filename):
+
     return (
         "." in filename
         and filename.rsplit(".", 1)[1].lower()
@@ -378,31 +541,39 @@ def allowed_file(filename):
 
 @app.route("/")
 def home():
+
     return render_template("index.html")
+
 
 # ==========================================
 # USER REGISTRATION
+# PUBLIC USERS BECOME VIEWERS
 # ==========================================
-
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
 
     if request.method == "POST":
 
-        username = request.form.get("username", "").strip()
-        email = request.form.get("email", "").strip().lower()
+        username = request.form.get(
+            "username", ""
+        ).strip()
+
+        email = request.form.get(
+            "email", ""
+        ).strip().lower()
+
         password = request.form.get("password", "")
 
-        # Username validation
         if not re.fullmatch(r"[A-Za-z]+", username):
             return render_template(
                 "register.html",
                 error="Username must contain English letters only."
             )
 
-        # Email validation
-        email_pattern = r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+        email_pattern = (
+            r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+        )
 
         if not re.fullmatch(email_pattern, email):
             return render_template(
@@ -410,7 +581,6 @@ def register():
                 error="Please enter a valid email address."
             )
 
-        # Password validation
         if len(password) < 8:
             return render_template(
                 "register.html",
@@ -422,14 +592,18 @@ def register():
         conn = get_db_connection()
 
         try:
-            # Public registration always creates an Owner.
-            # Never accept an Admin role from the registration form.
+            conn.execute("BEGIN IMMEDIATE")
+
             conn.execute("""
                 INSERT INTO users (
                     username, email, password_hash, role
                 )
                 VALUES (?, ?, ?, 'viewer')
-            """, (username, email, password_hash))
+            """, (
+                username,
+                email,
+                password_hash
+            ))
 
             conn.commit()
 
@@ -439,6 +613,8 @@ def register():
             )
 
         except sqlite3.IntegrityError:
+            conn.rollback()
+
             return render_template(
                 "register.html",
                 error="This email is already registered."
@@ -449,9 +625,11 @@ def register():
 
     return render_template("register.html")
 
+
 # ==========================================
 # USER LOGIN
 # ==========================================
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -460,6 +638,12 @@ def login():
 
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
+
+        if not email or not password:
+            return render_template(
+                "login.html",
+                error="Please enter your email and password."
+            )
 
         conn = get_db_connection()
 
@@ -473,17 +657,22 @@ def login():
         finally:
             conn.close()
 
+        # Successful login
         if user and check_password_hash(
             user["password_hash"], password
         ):
 
+            # Clear old session data
             session.clear()
+
+            # Store authenticated user ID
             session["user_id"] = user["id"]
 
-            # Record the local login time for this session.
+            # Record login time
             login_time = datetime.now().astimezone()
             session["login_time"] = login_time.isoformat()
 
+            # Record successful login in audit logs
             log_action(
                 user["id"],
                 "LOGIN",
@@ -495,13 +684,19 @@ def login():
 
             return redirect(url_for("dashboard"))
 
+        # Record failed login attempt
+        log_action(
+            user["id"] if user else None,
+            "LOGIN_FAILED",
+            details="Invalid email address or password submitted"
+        )
+
         return render_template(
             "login.html",
             error="Invalid email address or password."
         )
 
     return render_template("login.html")
-
 # ==========================================
 # USER DASHBOARD
 # ==========================================
@@ -513,6 +708,7 @@ def dashboard():
 
     if user is None:
         session.clear()
+        flash("Please login first.")
         return redirect(url_for("login"))
 
     return render_template(
@@ -531,18 +727,22 @@ def dashboard():
 def documents():
 
     user = current_user()
+
     search_query = request.args.get("q", "").strip()[:100]
 
     conn = get_db_connection()
 
     try:
-
         if user["role"] == "admin":
 
             sql = """
-                SELECT d.id, d.original_filename, d.file_size,
-                       d.upload_date, d.owner_id,
-                       u.username AS owner_name
+                SELECT
+                    d.id,
+                    d.original_filename,
+                    d.file_size,
+                    d.upload_date,
+                    d.owner_id,
+                    u.username AS owner_name
                 FROM documents AS d
                 JOIN users AS u ON u.id = d.owner_id
             """
@@ -560,9 +760,13 @@ def documents():
         else:
 
             sql = """
-                SELECT d.id, d.original_filename, d.file_size,
-                       d.upload_date, d.owner_id,
-                       u.username AS owner_name
+                SELECT
+                    d.id,
+                    d.original_filename,
+                    d.file_size,
+                    d.upload_date,
+                    d.owner_id,
+                    u.username AS owner_name
                 FROM documents AS d
                 JOIN users AS u ON u.id = d.owner_id
                 WHERE d.owner_id = ?
@@ -584,15 +788,20 @@ def documents():
 
             item = dict(doc)
 
+            shares = conn.execute("""
+                SELECT
+                    s.shared_with_user_id,
+                    u.username,
+                    u.email
+                FROM document_shares AS s
+                JOIN users AS u
+                    ON u.id = s.shared_with_user_id
+                WHERE s.document_id = ?
+                ORDER BY s.shared_date DESC
+            """, (doc["id"],)).fetchall()
+
             item["shares"] = [
-                dict(share)
-                for share in conn.execute("""
-                    SELECT s.shared_with_user_id, u.username, u.email
-                    FROM document_shares AS s
-                    JOIN users AS u ON u.id = s.shared_with_user_id
-                    WHERE s.document_id = ?
-                    ORDER BY s.shared_date DESC
-                """, (doc["id"],)).fetchall()
+                dict(share) for share in shares
             ]
 
             result.append(item)
@@ -607,9 +816,10 @@ def documents():
         search_query=search_query
     )
 
+
 # ==========================================
-# DOCUMENT UPLOAD
-# OWNER AND ADMIN
+# SECURE DOCUMENT UPLOAD
+# OWNER AND ADMIN ONLY
 # ==========================================
 
 @app.route("/upload", methods=["POST"])
@@ -618,7 +828,7 @@ def upload_document():
 
     user = current_user()
 
-    if not user:
+    if user is None:
         flash("Please login first.")
         return redirect(url_for("login"))
 
@@ -642,7 +852,6 @@ def upload_document():
         flash("Invalid filename.")
         return redirect(url_for("documents"))
 
-    # Check file size
     file.seek(0, os.SEEK_END)
     file_size = file.tell()
     file.seek(0)
@@ -656,8 +865,13 @@ def upload_document():
         return redirect(url_for("documents"))
 
     extension = original_filename.rsplit(".", 1)[1].lower()
+
     stored_filename = f"{uuid.uuid4().hex}.{extension}"
-    file_path = os.path.join(UPLOAD_FOLDER, stored_filename)
+
+    file_path = os.path.join(
+        UPLOAD_FOLDER,
+        stored_filename
+    )
 
     conn = None
 
@@ -665,6 +879,8 @@ def upload_document():
         file.save(file_path)
 
         conn = get_db_connection()
+
+        conn.execute("BEGIN IMMEDIATE")
 
         cursor = conn.execute("""
             INSERT INTO documents (
@@ -683,33 +899,29 @@ def upload_document():
 
         document_id = cursor.lastrowid
 
-        conn.execute("""
-            INSERT INTO audit_logs (
-                user_id,
-                action,
-                document_id,
-                details
-            )
-            VALUES (?, ?, ?, ?)
-        """, (
+        append_audit_log(
+            conn,
             user["id"],
             "UPLOAD",
             document_id,
             f"Uploaded document: {original_filename}"
-        ))
+        )
 
         conn.commit()
 
         flash("Document uploaded successfully!")
 
     except Exception:
+
         if conn:
             conn.rollback()
 
         if os.path.exists(file_path):
             os.remove(file_path)
 
-        raise
+        app.logger.exception("Document upload failed")
+
+        flash("Upload failed. Please try again.")
 
     finally:
         if conn:
@@ -717,8 +929,9 @@ def upload_document():
 
     return redirect(url_for("documents"))
 
+
 # ==========================================
-# SECURE DOWNLOAD DOCUMENT
+# SECURE DOCUMENT DOWNLOAD
 # OWNER, ADMIN AND AUTHORIZED VIEWER
 # ==========================================
 
@@ -734,113 +947,82 @@ def download_document(document_id):
     conn = get_db_connection()
 
     try:
-        # Find document without granting access.
         document = conn.execute("""
-            SELECT
-                id,
-                original_filename,
-                stored_filename,
-                owner_id
+            SELECT id, original_filename, stored_filename, owner_id
             FROM documents
             WHERE id = ?
         """, (document_id,)).fetchone()
 
-        # Document does not exist.
         if document is None:
+            denied_reason = "Document does not exist"
+            document_name = None
+            stored_filename = None
+            document_id_for_log = None
 
-            log_action(
-                user["id"],
-                "DOWNLOAD_DENIED",
-                None,
-                f"Unauthorized attempt to access nonexistent "
-                f"document ID {document_id}"
+        else:
+            is_owner_or_admin = (
+                user["role"] == "admin"
+                or document["owner_id"] == user["id"]
             )
 
-            abort(404)
-
-        # Check document ownership.
-        is_owner = document["owner_id"] == user["id"]
-
-        # Admin can access all documents.
-        is_admin = user["role"] == "admin"
-
-        # Check active sharing permission.
-        share = conn.execute("""
-            SELECT id
-            FROM document_shares
-            WHERE document_id = ?
-              AND shared_with_user_id = ?
-              AND permission = 'viewer'
-        """, (
-            document_id,
-            user["id"]
-        )).fetchone()
-
-        is_authorized_viewer = (
-            user["role"] == "viewer"
-            and share is not None
-        )
-
-        # Deny access if none of the conditions are satisfied.
-        if not (
-            is_owner
-            or is_admin
-            or is_authorized_viewer
-        ):
-
-            log_action(
-                user["id"],
-                "DOWNLOAD_DENIED",
+            is_shared_viewer = conn.execute("""
+                SELECT 1
+                FROM document_shares
+                WHERE document_id = ?
+                  AND shared_with_user_id = ?
+            """, (
                 document_id,
-                (
-                    f"Unauthorized download attempt for "
-                    f"{document['original_filename']}. "
-                    f"User ID: {user['id']}, "
-                    f"Role: {user['role']}, "
-                    f"Owner ID: {document['owner_id']}"
-                )
-            )
+                user["id"]
+            )).fetchone() is not None
 
-            abort(404)
+            if not is_owner_or_admin and not is_shared_viewer:
 
-        # Confirm the stored file exists.
-        stored_filename = document["stored_filename"]
-        file_path = os.path.join(
-            UPLOAD_FOLDER,
-            stored_filename
-        )
+                denied_reason = "Unauthorized download attempt"
+                document_name = document["original_filename"]
+                stored_filename = None
+                document_id_for_log = document_id
 
-        if not os.path.isfile(file_path):
-
-            log_action(
-                user["id"],
-                "DOWNLOAD_FAILED",
-                document_id,
-                "Document record exists but stored file is missing."
-            )
-
-            abort(404)
-
-        # Record successful download.
-        log_action(
-            user["id"],
-            "DOWNLOAD",
-            document_id,
-            f"Successfully downloaded: {document['original_filename']}"
-        )
-
-        original_filename = document["original_filename"]
+            else:
+                denied_reason = None
+                document_name = document["original_filename"]
+                stored_filename = document["stored_filename"]
+                document_id_for_log = document_id
 
     finally:
         conn.close()
+
+    if denied_reason:
+
+        log_action(
+            user["id"],
+            "DOWNLOAD_DENIED",
+            document_id_for_log,
+            denied_reason
+        )
+
+        abort(404)
+
+    file_path = os.path.join(
+        UPLOAD_FOLDER,
+        stored_filename
+    )
+
+    if not os.path.isfile(file_path):
+        abort(404)
+
+    log_action(
+        user["id"],
+        "DOWNLOAD",
+        document_id,
+        f"Downloaded document: {document_name}"
+    )
 
     return send_from_directory(
         UPLOAD_FOLDER,
         stored_filename,
         as_attachment=True,
-        download_name=original_filename
+        download_name=document_name
     )
-
 
 # ==========================================
 # DOCUMENT DELETE
@@ -857,11 +1039,7 @@ def delete_document(document_id):
 
     try:
         document = conn.execute("""
-            SELECT
-                id,
-                original_filename,
-                stored_filename,
-                owner_id
+            SELECT id, original_filename, stored_filename, owner_id
             FROM documents
             WHERE id = ?
         """, (document_id,)).fetchone()
@@ -878,12 +1056,18 @@ def delete_document(document_id):
 
         filename = document["original_filename"]
 
+        conn.execute("BEGIN IMMEDIATE")
+
         conn.execute("""
             DELETE FROM documents
             WHERE id = ?
         """, (document_id,))
 
         conn.commit()
+
+    except Exception:
+        conn.rollback()
+        raise
 
     finally:
         conn.close()
@@ -900,6 +1084,7 @@ def delete_document(document_id):
     flash("Document deleted successfully!")
 
     return redirect(url_for("documents"))
+
 
 # ==========================================
 # SHARE DOCUMENT
@@ -924,10 +1109,7 @@ def share_document(document_id):
 
     try:
         document = conn.execute("""
-            SELECT
-                id,
-                original_filename,
-                owner_id
+            SELECT id, original_filename, owner_id
             FROM documents
             WHERE id = ?
         """, (document_id,)).fetchone()
@@ -979,13 +1161,16 @@ def share_document(document_id):
             user["id"],
             "SHARE",
             document_id,
-            f"Shared {document['original_filename']} "
-            f"with {recipient['username']} ({recipient['email']})"
+            (
+                f"Shared {document['original_filename']} "
+                f"with {recipient['username']} ({recipient['email']})"
+            )
         )
 
         flash("Document shared successfully with viewer access.")
 
     return redirect(url_for("documents"))
+
 
 # ==========================================
 # REVOKE DOCUMENT ACCESS
@@ -997,15 +1182,14 @@ def share_document(document_id):
     methods=["POST"]
 )
 @role_required("owner", "admin")
-
 def revoke_document_share(document_id, user_id):
 
     user = current_user()
-
     conn = get_db_connection()
 
+    revoked = False
+
     try:
-        # Start one transaction for revocation and audit logging.
         conn.execute("BEGIN IMMEDIATE")
 
         document = conn.execute("""
@@ -1014,7 +1198,9 @@ def revoke_document_share(document_id, user_id):
             WHERE id = ?
         """, (document_id,)).fetchone()
 
-        if document is None or not can_manage_document(user, document):
+        if document is None or not can_manage_document(
+            user, document
+        ):
             conn.rollback()
             abort(404)
 
@@ -1024,27 +1210,25 @@ def revoke_document_share(document_id, user_id):
             WHERE id = ?
         """, (user_id,)).fetchone()
 
-        # Remove the recipient's access.
         cursor = conn.execute("""
             DELETE FROM document_shares
             WHERE document_id = ?
-            AND shared_with_user_id = ?
-        """, (document_id, user_id))
+              AND shared_with_user_id = ?
+        """, (
+            document_id,
+            user_id
+        ))
 
         revoked = cursor.rowcount > 0
 
         if revoked:
+
             recipient_label = (
                 recipient["email"] if recipient else str(user_id)
             )
 
-            # Save the audit event in the same transaction.
-            conn.execute("""
-                INSERT INTO audit_logs (
-                    user_id, action, document_id, details
-                )
-                VALUES (?, ?, ?, ?)
-            """, (
+            append_audit_log(
+                conn,
                 user["id"],
                 "REVOKE",
                 document_id,
@@ -1052,7 +1236,7 @@ def revoke_document_share(document_id, user_id):
                     f"Revoked access to {document['original_filename']} "
                     f"for {recipient_label}"
                 )
-            ))
+            )
 
         conn.commit()
 
@@ -1065,6 +1249,7 @@ def revoke_document_share(document_id, user_id):
 
     if revoked:
         flash("Document access revoked successfully.")
+
     else:
         flash("No sharing access was found for this user.")
 
@@ -1113,6 +1298,7 @@ def shared_documents():
         documents=shared_list
     )
 
+
 # ==========================================
 # ADMIN-ONLY AUDIT LOGS
 # ==========================================
@@ -1160,6 +1346,7 @@ def file_too_large(error):
         413
     )
 
+
 # ==========================================
 # ACCESS DENIED
 # ==========================================
@@ -1173,11 +1360,12 @@ def access_denied(error):
         <a href="/dashboard">Return to Dashboard</a>
     """, 403
 
+
 # ==========================================
 # LOGOUT WITH SESSION DURATION
 # ==========================================
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 def logout():
 
     user_id = session.get("user_id")
@@ -1185,33 +1373,50 @@ def logout():
     if user_id is not None:
 
         logout_time = datetime.now().astimezone()
+
         login_time_text = session.get("login_time")
+
         duration_text = "Not available"
 
         if login_time_text:
+
             try:
-                login_time = datetime.fromisoformat(login_time_text)
+                login_time = datetime.fromisoformat(
+                    login_time_text
+                )
 
                 duration_seconds = max(
                     0,
-                    int((logout_time - login_time).total_seconds())
+                    int(
+                        (logout_time - login_time).total_seconds()
+                    )
                 )
 
-                hours, remainder = divmod(duration_seconds, 3600)
-                minutes, seconds = divmod(remainder, 60)
+                hours, remainder = divmod(
+                    duration_seconds, 3600
+                )
+
+                minutes, seconds = divmod(
+                    remainder, 60
+                )
 
                 duration_text = (
-                    f"{hours} hours, {minutes} minutes, {seconds} seconds"
+                    f"{hours} hours, "
+                    f"{minutes} minutes, "
+                    f"{seconds} seconds"
                 )
 
             except (TypeError, ValueError):
-                duration_text = "Could not calculate session duration"
+                duration_text = (
+                    "Could not calculate session duration"
+                )
 
         log_action(
             user_id,
             "LOGOUT",
             details=(
-                f"Logout time: {logout_time.strftime('%Y-%m-%d %H:%M:%S %Z')}; "
+                f"Logout time: "
+                f"{logout_time.strftime('%Y-%m-%d %H:%M:%S %Z')}; "
                 f"Login time: {login_time_text or 'Not available'}; "
                 f"Session duration: {duration_text}"
             )
@@ -1221,10 +1426,12 @@ def logout():
 
     return redirect(url_for("login"))
 
+
 # ==========================================
 # RUN APPLICATION
 # ==========================================
 
 if __name__ == "__main__":
+
     # Debug mode is only for local development.
     app.run(debug=True)

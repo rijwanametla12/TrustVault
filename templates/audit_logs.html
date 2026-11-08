@@ -35,7 +35,6 @@
         }
 
         /* Header */
-
         .header {
             display: flex;
             justify-content: space-between;
@@ -97,7 +96,6 @@
         }
 
         /* Page heading */
-
         .page-heading {
             margin-top: 35px;
             margin-bottom: 25px;
@@ -124,7 +122,6 @@
         }
 
         /* Information banner */
-
         .info-banner {
             display: flex;
             align-items: center;
@@ -160,7 +157,6 @@
         }
 
         /* Activity section */
-
         .activity-heading {
             display: flex;
             justify-content: space-between;
@@ -185,7 +181,6 @@
         }
 
         /* Table */
-
         .table-wrapper {
             overflow-x: auto;
             border: 1px solid #eeeaf7;
@@ -255,7 +250,6 @@
         }
 
         /* Empty state */
-
         .empty {
             text-align: center;
             padding: 45px 20px;
@@ -270,7 +264,6 @@
         }
 
         /* Footer */
-
         .footer {
             text-align: center;
             margin-top: 32px;
@@ -318,14 +311,12 @@
     <div class="header">
 
         <div class="brand">
-
             <div class="brand-icon">✓</div>
 
             <div>
                 <h1>TrustVault</h1>
                 <p>YOUR DOCUMENTS. YOUR SECURITY.</p>
             </div>
-
         </div>
 
         <a href="{{ url_for('dashboard') }}" class="back">
@@ -414,7 +405,7 @@
                     </td>
 
                     <td class="date">
-                        {{ log["created_at"] }}
+                        {{ log["timestamp"] or "Not available" }}
                     </td>
 
                 </tr>
@@ -445,9 +436,7 @@
 
     <!-- Footer -->
     <div class="footer">
-
         © 2026 TrustVault | Secure Digital Document Management
-
     </div>
 
 </div>
