@@ -4,3 +4,4 @@ Werkzeug
 Flask-WTF
 supabase
 gunicorn
+google-genai==3.0.0
