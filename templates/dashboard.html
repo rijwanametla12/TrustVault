@@ -20,7 +20,6 @@
             color: #202944;
         }
 
-        /* Navigation */
         .navbar {
             background: white;
             padding: 18px 7%;
@@ -54,12 +53,15 @@
         }
 
         .logout {
+            display: inline-block;
             background: #fff0f0;
             color: #d64545;
-            text-decoration: none;
             padding: 12px 22px;
             border-radius: 10px;
             font-weight: 700;
+            border: 0;
+            cursor: pointer;
+            font-size: 14px;
             transition: 0.3s;
         }
 
@@ -69,14 +71,12 @@
             transform: translateY(-2px);
         }
 
-        /* Main container */
         .container {
             max-width: 1150px;
             margin: 45px auto;
             padding: 0 25px;
         }
 
-        /* Welcome section */
         .welcome-section {
             background: linear-gradient(120deg, #eeeaff, #ffffff);
             padding: 38px;
@@ -137,7 +137,6 @@
             box-shadow: 0 12px 25px rgba(85, 55, 190, 0.2);
         }
 
-        /* Dashboard heading */
         .dashboard-heading {
             margin: 40px 0 22px;
         }
@@ -153,7 +152,6 @@
             font-size: 14px;
         }
 
-        /* Cards */
         .cards {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -210,7 +208,6 @@
             margin-top: 18px;
         }
 
-        /* Security information */
         .security-banner {
             margin-top: 30px;
             padding: 23px 28px;
@@ -237,7 +234,6 @@
             line-height: 1.5;
         }
 
-        /* Footer */
         .footer {
             text-align: center;
             padding: 25px;
@@ -247,7 +243,6 @@
             font-size: 13px;
         }
 
-        /* Responsive */
         @media (max-width: 850px) {
             .cards {
                 grid-template-columns: repeat(2, 1fr);
@@ -300,21 +295,29 @@
 
 <body>
 
-    <!-- Navigation -->
     <nav class="navbar">
         <div class="brand">
             <div class="brand-icon">✓</div>
             <span>TrustVault</span>
         </div>
 
-        <a href="{{ url_for('logout') }}" class="logout">
-            Sign Out →
-        </a>
+        <!-- Secure POST logout with CSRF protection -->
+        <form action="{{ url_for('logout') }}"
+              method="POST"
+              style="margin: 0;">
+
+            <input type="hidden"
+                   name="csrf_token"
+                   value="{{ csrf_token() }}">
+
+            <button type="submit" class="logout">
+                Sign Out →
+            </button>
+        </form>
     </nav>
 
     <main class="container">
 
-        <!-- Welcome section -->
         <section class="welcome-section">
             <div>
                 <div class="welcome-label">
@@ -340,16 +343,13 @@
             </div>
         </section>
 
-        <!-- Dashboard heading -->
         <section class="dashboard-heading">
             <h2>My Dashboard</h2>
             <p>Access your TrustVault services below.</p>
         </section>
 
-        <!-- Dashboard cards -->
         <section class="cards">
 
-            <!-- Document Storage -->
             <a href="{{ url_for('documents') }}" class="card">
                 <div class="icon">📁</div>
                 <h3>Document Storage</h3>
@@ -362,7 +362,6 @@
                 </span>
             </a>
 
-            <!-- Account Security -->
             <div class="card">
                 <div class="icon">🛡️</div>
                 <h3>Account Security</h3>
@@ -375,7 +374,6 @@
                 </span>
             </div>
 
-            <!-- Document Sharing -->
             <a href="{{ url_for('shared_documents') }}" class="card">
                 <div class="icon">🔗</div>
                 <h3>Document Sharing</h3>
@@ -388,7 +386,6 @@
                 </span>
             </a>
 
-            <!-- Admin Audit Logs: Admin only -->
             {% if role == 'admin' %}
             <a href="{{ url_for('audit_logs') }}" class="card">
                 <div class="icon">📋</div>
@@ -405,7 +402,6 @@
 
         </section>
 
-        <!-- Security banner -->
         <section class="security-banner">
             <div class="security-icon">🔒</div>
 
@@ -420,7 +416,6 @@
 
     </main>
 
-    <!-- Footer -->
     <footer class="footer">
         © 2026 TrustVault | Secure Digital Document Management
     </footer>
