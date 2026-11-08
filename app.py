@@ -190,24 +190,25 @@ def create_tables():
                 ADD COLUMN entry_hash TEXT
             """)
 
-        # Add chain identifiers. Existing records remain in legacy chain 1.
+        # Add chain identifiers
         chain_id_added = "chain_id" not in audit_column_names
+
         if chain_id_added:
             conn.execute("""
                 ALTER TABLE audit_logs
                 ADD COLUMN chain_id INTEGER NOT NULL DEFAULT 1
             """)
 
-        # Remove mutable foreign-key relationships from the audit table.
-        # This preserves the recorded user/document IDs when those entities
-        # are later deleted. Existing values and hashes are copied unchanged.
+        # Remove mutable foreign-key relationships from audit table
         foreign_keys = conn.execute(
             "PRAGMA foreign_key_list(audit_logs)"
         ).fetchall()
+
         if foreign_keys:
             conn.commit()
             conn.execute("PRAGMA foreign_keys = OFF")
             conn.execute("BEGIN IMMEDIATE")
+
             conn.execute("""
                 CREATE TABLE audit_logs_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -221,6 +222,7 @@ def create_tables():
                     chain_id INTEGER NOT NULL DEFAULT 1
                 )
             """)
+
             conn.execute("""
                 INSERT INTO audit_logs_new
                     (id, user_id, action, document_id, details, timestamp,
@@ -230,25 +232,34 @@ def create_tables():
                 FROM audit_logs
                 ORDER BY id
             """)
+
             conn.execute("DROP TABLE audit_logs")
-            conn.execute("ALTER TABLE audit_logs_new RENAME TO audit_logs")
+            conn.execute(
+                "ALTER TABLE audit_logs_new RENAME TO audit_logs"
+            )
+
             conn.commit()
             conn.execute("PRAGMA foreign_keys = ON")
 
-        # Track the active hash-chain segment. Existing history is never
-        # silently rehashed; new entries start a separate segment.
+        # Track active hash-chain segment
         conn.execute("""
             CREATE TABLE IF NOT EXISTS audit_chain_state (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 active_chain_id INTEGER NOT NULL
             )
         """)
+
         existing_count = conn.execute(
             "SELECT COUNT(*) FROM audit_logs"
         ).fetchone()[0]
-        initial_active_chain = 2 if chain_id_added and existing_count else 1
+
+        initial_active_chain = (
+            2 if chain_id_added and existing_count else 1
+        )
+
         conn.execute("""
-            INSERT OR IGNORE INTO audit_chain_state (id, active_chain_id)
+            INSERT OR IGNORE INTO audit_chain_state
+                (id, active_chain_id)
             VALUES (1, ?)
         """, (initial_active_chain,))
 
@@ -312,6 +323,62 @@ def create_tables():
 
 # Create tables when application starts
 create_tables()
+
+
+# ==========================================
+# TEMPORARY ADMIN ACCOUNT BOOTSTRAP
+# Remove after successful promotion
+# ==========================================
+
+def promote_bootstrap_admin():
+
+    username = os.environ.get(
+        "ADMIN_BOOTSTRAP_USERNAME", ""
+    ).strip()
+
+    if not username:
+        return
+
+    conn = get_db_connection()
+
+    try:
+        matches = conn.execute("""
+            SELECT id
+            FROM users
+            WHERE LOWER(username) = LOWER(?)
+        """, (username,)).fetchall()
+
+        if len(matches) != 1:
+            app.logger.error(
+                "Admin promotion failed: username not found "
+                "or is not unique."
+            )
+            return
+
+        conn.execute("""
+            UPDATE users
+            SET role = 'admin'
+            WHERE id = ?
+        """, (matches[0]["id"],))
+
+        conn.commit()
+
+        app.logger.info(
+            "Bootstrap admin promotion completed."
+        )
+
+    except Exception:
+        conn.rollback()
+        app.logger.exception(
+            "Admin bootstrap failed."
+        )
+
+    finally:
+        conn.close()
+
+
+promote_bootstrap_admin()
+
 
 # ==========================================
 # AUDIT LOG HELPER
