@@ -1,4 +1,3 @@
-
 # TrustVault – API and Role-Based Authorization Documentation
 
 ## 1. Overview
@@ -47,6 +46,9 @@ Protected routes require an authenticated Flask session.
 | POST | `/delete/<document_id>` | Admin, document Owner | Deletes an authorized document. |
 | POST | `/share/<document_id>` | Admin, document Owner | Shares a document with a registered user using Viewer access. |
 | POST | `/revoke-share/<document_id>/<user_id>` | Admin, document Owner | Revokes an existing sharing permission. |
+| POST | `/ai/suggest/<document_id>` | Authorized document manager | Requests an AI-generated permission suggestion. |
+| POST | `/ai/suggestions/<suggestion_id>/approve` | Admin, document Owner | Approves a pending AI permission suggestion. |
+| POST | `/ai/suggestions/<suggestion_id>/reject` | Admin, document Owner | Rejects a pending AI permission suggestion. |
 | GET | `/shared-documents` | Authenticated users | Displays documents shared with the current user. |
 | GET | `/audit-logs` | Admin | Displays audit events. |
 | POST | `/logout` | Authenticated users | Records logout and clears the session. |
@@ -68,6 +70,21 @@ Unauthorized or missing documents are denied.
 Only the document Owner or Admin can share a document.
 
 The recipient must already have a registered account. The current sharing permission is Viewer-only.
+
+### AI-Powered Permission Review
+
+TrustVault integrates Google Gemini to generate AI-powered document permission suggestions.
+
+The workflow is:
+
+1. An authorized document manager requests an AI permission suggestion.
+2. Gemini analyzes available document metadata and recipient context.
+3. The system generates a permission recommendation.
+4. The recommendation remains pending until reviewed.
+5. An Admin or document Owner can approve or reject the suggestion.
+6. Access is granted only after approval.
+
+**Important:** AI does not automatically grant document access. Human approval is required before an AI-generated suggestion can grant access.
 
 ### Access Revocation
 
@@ -94,6 +111,8 @@ Only Admin users can view the audit-log page.
 - Maximum upload size of 5 MB.
 - SHA-256 audit hash chaining.
 - Required SECRET_KEY environment variable.
+- Secure session cookie configuration for production.
+- Human approval for AI-generated permission suggestions.
 
 ## 7. Audit Events
 
@@ -107,6 +126,7 @@ The application records security-relevant events, including:
 - SHARE
 - REVOKE
 - DELETE
+- AI permission suggestion approval and rejection events.
 
 Audit records use SHA-256 hash chaining.
 
@@ -116,7 +136,8 @@ Historical audit-chain integrity failures remain unresolved and are documented i
 
 - No separate JSON REST API is currently implemented.
 - No API tokens or external API authentication.
-- No AI-based permission suggestion and owner-approval workflow is currently implemented.
+- AI permission suggestions depend on a valid Gemini API key and service availability.
+- AI-generated suggestions require human review and approval.
 - No external-link sharing.
 - No document versioning or recovery.
 - Persistent cloud database and file storage are not verified.
