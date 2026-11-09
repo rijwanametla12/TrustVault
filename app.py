@@ -13,6 +13,7 @@ import json
 import io
 import zipfile
 from google import genai
+from google.genai import types
 
 from datetime import datetime
 from functools import wraps
@@ -59,9 +60,11 @@ gemini_client = None
 
 if GEMINI_API_KEY:
     gemini_client = genai.Client(
-        api_key=GEMINI_API_KEY
+        api_key=GEMINI_API_KEY,
+        http_options=types.HttpOptions(
+            retry_options=types.HttpRetryOptions(attempts=1)
+        )
     )
-
 # ==========================================
 # CSRF PROTECTION
 # ==========================================
