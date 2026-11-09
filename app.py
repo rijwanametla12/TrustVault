@@ -1431,6 +1431,10 @@ def delete_document(document_id):
 # AI PERMISSION SUGGESTION
 # ==========================================
 
+# ==========================================
+# AI PERMISSION SUGGESTION
+# ==========================================
+
 @app.route("/ai/suggest/<int:document_id>", methods=["POST"])
 @role_required("owner", "admin")
 def suggest_permission(document_id):
@@ -1473,7 +1477,8 @@ def suggest_permission(document_id):
 
         existing_share = conn.execute("""
             SELECT id FROM document_shares
-            WHERE document_id = ? AND shared_with_user_id = ?
+            WHERE document_id = ?
+              AND shared_with_user_id = ?
         """, (document_id, recipient["id"])).fetchone()
 
         if existing_share:
@@ -1511,16 +1516,22 @@ You must never grant access.
 If information is insufficient, clearly say so.
 """
 
+        # Call Gemini with a bounded request timeout.
         response = gemini_client.interactions.create(
             model=GEMINI_MODEL,
-            input=prompt
+            input=prompt,
+            timeout=45
         )
 
         ai_reason = (
             getattr(response, "output_text", None)
             or "AI did not provide an explanation."
         )
+
         ai_reason = str(ai_reason).strip()[:3000]
+
+        if not ai_reason:
+            ai_reason = "AI did not provide an explanation."
 
         conn.execute("BEGIN IMMEDIATE")
 
@@ -1554,12 +1565,8 @@ If information is insufficient, clearly say so.
         conn.commit()
         flash("AI suggestion created. Please review it.")
 
-    except Exception as exc:
+    except Exception:
         conn.rollback()
-
-        if getattr(exc, "code", None) is not None:
-            raise
-
         app.logger.exception("AI permission suggestion failed")
         flash("Unable to create AI suggestion. Please try again.")
 
@@ -1637,12 +1644,8 @@ def approve_permission_suggestion(suggestion_id):
         conn.commit()
         flash("Approved! Viewer access has been granted.")
 
-    except Exception as exc:
+    except Exception:
         conn.rollback()
-
-        if getattr(exc, "code", None) is not None:
-            raise
-
         app.logger.exception("Permission approval failed")
         flash("Unable to approve this suggestion.")
 
@@ -1706,12 +1709,8 @@ def reject_permission_suggestion(suggestion_id):
         conn.commit()
         flash("Suggestion rejected. No access was granted.")
 
-    except Exception as exc:
+    except Exception:
         conn.rollback()
-
-        if getattr(exc, "code", None) is not None:
-            raise
-
         app.logger.exception("Permission rejection failed")
         flash("Unable to reject this suggestion.")
 
